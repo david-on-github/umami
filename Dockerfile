@@ -10,9 +10,10 @@ FROM node:${NODE_IMAGE_VERSION} AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 
 RUN printf 'strictDepBuilds: false\n' > pnpm-workspace.yaml
+
 
 RUN pnpm install --frozen-lockfile
 
@@ -46,7 +47,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 RUN set -x \
     && apk add --no-cache curl libc6-compat \
-    && npm install -g pnpm
+    && npm install -g pnpm@10
 
 RUN echo {} > package.json
 
