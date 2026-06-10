@@ -127,6 +127,12 @@ export function useFields() {
       label: t(labels.event),
       group: 'other',
     },
+    {
+      name: 'eventProperty',
+      filterLabel: t(labels.eventProperty),
+      label: t(labels.eventProperty),
+      group: 'other',
+    },
   ];
 
   const groupLabels: { key: FieldGroup; label: string }[] = [

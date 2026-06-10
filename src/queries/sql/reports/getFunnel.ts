@@ -12,6 +12,7 @@ export interface FunnelStepFilter {
 export interface FunnelStep {
   type: string;
   value: string;
+  hostname?: string;
   filters?: Array<FunnelStepFilter>;
 }
 
@@ -128,6 +129,9 @@ async function relationalQuery(
               )
             : '';
 
+        if (cv.hostname) extraParams[`hostname_${i}`] = cv.hostname;
+        const hostnameClause = cv.hostname ? `and {{alias}}.hostname = {{hostname_${i}}}` : '';
+
         if (levelNumber === 1) {
           pv.levelOneQuery = `
           WITH level1 AS (
@@ -140,6 +144,7 @@ async function relationalQuery(
               and ${column} ${operator} {{${i}}}
               ${filterQuery}
               ${existsClause}
+              ${hostnameClause.replace('{{alias}}', 'website_event')}
           )`;
         } else {
           pv.levelQuery += `
@@ -156,6 +161,7 @@ async function relationalQuery(
                 and we.${column} ${operator} {{${i}}}
                 and we.created_at <= {{endDate}}
                 ${existsClause}
+                ${hostnameClause.replace('{{alias}}', 'we')}
           )`;
         }
 
@@ -278,6 +284,9 @@ async function clickhouseQuery(
             ? buildEventDataFilters(i, cv.filters, extraParams, eventAlias)
             : '';
 
+        if (cv.hostname) extraParams[`hostname_${i}`] = cv.hostname;
+        const hostnameClause = cv.hostname ? `and {{alias}}.hostname = {hostname_${i}:String}` : '';
+
         if (levelNumber === 1) {
           pv.levelOneQuery = `\n
           level1 AS (
@@ -285,6 +294,7 @@ async function clickhouseQuery(
             from level0
             where ${column} ${operator} {param${i}:String}
             ${eventDataClause}
+            ${hostnameClause.replace('{{alias}}', 'level0')}
           )`;
         } else {
           pv.levelQuery += `\n
@@ -301,6 +311,7 @@ async function clickhouseQuery(
             where y.created_at between x.created_at and x.created_at + interval ${window} minute
                 and y.${column} ${operator} {param${i}:String}
                 ${eventDataClause}
+                ${hostnameClause.replace('{{alias}}', 'y')}
           )`;
         }
 

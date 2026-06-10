@@ -150,6 +150,7 @@ export interface FilterParams {
   city?: string;
   language?: string;
   event?: string;
+  eventProperty?: string;
   search?: string;
   tag?: string;
   eventType?: number;

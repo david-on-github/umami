@@ -1,6 +1,7 @@
 import {
   Button,
   Column,
+  ComboBox,
   Grid,
   Icon,
   Label,
@@ -12,9 +13,10 @@ import {
 import { useState } from 'react';
 import { Empty } from '@/components/common/Empty';
 import { MultiSelect } from '@/components/common/MultiSelect';
-import { useFilters, useFormat, useWebsiteValuesQuery } from '@/components/hooks';
+import { useApi, useFilters, useFormat, useMessages, useWebsiteValuesQuery } from '@/components/hooks';
 import { X } from '@/components/icons';
 import { isSearchOperator } from '@/lib/params';
+import { endOfDay, subMonths } from 'date-fns';
 
 export interface FilterRecordProps {
   websiteId?: string;
@@ -29,7 +31,94 @@ export interface FilterRecordProps {
   onChange?: (name: string, value: string) => void;
 }
 
-export function FilterRecord({
+function EventPropertyFilter({
+  websiteId,
+  name,
+  operator,
+  value,
+  onSelect,
+  onRemove,
+  onChange,
+}: FilterRecordProps) {
+  const { t, labels } = useMessages();
+  const { get, useQuery } = useApi();
+  const startAt = +subMonths(endOfDay(new Date()), 6);
+  const endAt = +endOfDay(new Date());
+
+  const pipeIdx = (value as string).indexOf('|');
+  const [propertyName, setPropertyName] = useState(
+    pipeIdx >= 0 ? (value as string).slice(0, pipeIdx) : (value as string),
+  );
+  const [propertyValue, setPropertyValue] = useState(
+    pipeIdx >= 0 ? (value as string).slice(pipeIdx + 1) : '',
+  );
+
+  const { data, isLoading } = useQuery<Array<{ propertyName: string }>>({
+    queryKey: ['event-data:properties', { websiteId, searchValue: '', startAt, endAt }],
+    queryFn: () => get(`/websites/${websiteId}/event-data/properties`, { startAt, endAt }),
+    enabled: !!websiteId,
+  });
+
+  const properties = [...new Set(data?.map(d => d.propertyName) ?? [])];
+
+  const handlePropertyChange = (v: string) => {
+    setPropertyName(v);
+    onChange?.(name, `${v}|${propertyValue}`);
+  };
+
+  const handleValueChange = (v: string) => {
+    setPropertyValue(v);
+    onChange?.(name, `${propertyName}|${v}`);
+  };
+
+  return (
+    <Column>
+      <Label>{t(labels.eventProperty)}</Label>
+      <Grid columns="1fr auto 1fr auto auto" gap alignItems="start">
+        <ComboBox
+          aria-label="property"
+          items={properties}
+          inputValue={propertyName}
+          onInputChange={handlePropertyChange}
+          formValue="text"
+          allowsEmptyCollection
+          allowsCustomValue
+          renderEmptyState={() =>
+            isLoading ? <Loading icon="dots" /> : <Empty />
+          }
+        >
+          {properties.map(p => (
+            <ListItem key={p} id={p}>
+              {p}
+            </ListItem>
+          ))}
+        </ComboBox>
+        <Select value={operator} onChange={v => onSelect?.(name, v)}>
+          <ListItem id="eq">{t(labels.is)}</ListItem>
+          <ListItem id="neq">{t(labels.isNot)}</ListItem>
+          <ListItem id="c">{t(labels.contains)}</ListItem>
+          <ListItem id="dnc">{t(labels.doesNotContain)}</ListItem>
+        </Select>
+        <TextField value={propertyValue} onChange={handleValueChange} />
+        <Button onPress={() => onRemove?.(name)}>
+          <Icon>
+            <X />
+          </Icon>
+        </Button>
+      </Grid>
+    </Column>
+  );
+}
+
+export function FilterRecord(props: FilterRecordProps) {
+  const { type } = props;
+  if (type === 'eventProperty' || type.replace(/\d+$/, '') === 'eventProperty') {
+    return <EventPropertyFilter {...props} />;
+  }
+  return <StandardFilterRecord {...props} />;
+}
+
+function StandardFilterRecord({
   websiteId,
   type,
   startDate,

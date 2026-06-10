@@ -92,6 +92,7 @@ export const FILTER_COLUMNS = {
   language: 'language',
   event: 'event_name',
   tag: 'tag',
+  eventProperty: 'event_data',
   eventType: 'event_type',
   utmSource: 'utm_source',
   utmMedium: 'utm_medium',

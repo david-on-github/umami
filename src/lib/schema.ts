@@ -58,6 +58,7 @@ export const filterParams = {
   distinctId: z.string().optional(),
   language: z.string().optional(),
   event: z.string().optional(),
+  eventProperty: z.string().optional(),
   utmSource: z.string().optional(),
   utmMedium: z.string().optional(),
   utmCampaign: z.string().optional(),
@@ -194,6 +195,7 @@ export const funnelReportSchema = z.object({
         z.object({
           type: z.enum(['path', 'event']),
           value: z.string(),
+          hostname: z.string().optional(),
           filters: z
             .array(
               z.object({

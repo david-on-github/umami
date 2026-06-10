@@ -71,6 +71,11 @@ export function SessionActivity({
                   <Text wrap="nowrap">
                     {eventName ? t(labels.triggeredEvent) : t(labels.viewedPage)}
                   </Text>
+                  {hostname && (
+                    <Text color="muted" wrap="nowrap">
+                      {hostname}
+                    </Text>
+                  )}
                   <Text weight="bold" style={{ maxWidth: isMobile ? '400px' : null }} truncate>
                     {eventName || renderLink(urlPath, hostname)}
                   </Text>

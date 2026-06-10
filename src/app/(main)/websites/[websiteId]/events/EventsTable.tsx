@@ -63,6 +63,9 @@ export function EventsTable(props: DataTableProps) {
           );
         }}
       </DataColumn>
+      <DataColumn id="hostname" label={t(labels.hostname)} width="160px">
+        {(row: any) => row.hostname}
+      </DataColumn>
       <DataColumn id="session" label={t(labels.session)} width="80px">
         {(row: any) => {
           return (

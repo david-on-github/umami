@@ -148,6 +148,27 @@ function getFilterQuery(filters: Record<string, any>, options: QueryOptions = {}
         column = FILTER_COLUMNS[name.slice('cohort_'.length)];
       }
 
+      if (column === 'event_data') {
+        const paramKey = paramName ?? name;
+        const kParam = `ep_${paramKey}_k`;
+        const vParam = `ep_${paramKey}_v`;
+        let sqlOp = '=';
+        if (operator === OPERATORS.notEquals) sqlOp = '!=';
+        else if (operator === OPERATORS.contains) sqlOp = 'ilike';
+        else if (operator === OPERATORS.doesNotContain) sqlOp = 'not ilike';
+        andClauses.push(`and exists (
+          select 1 from event_data _ep_${paramKey}
+          where _ep_${paramKey}.website_event_id = website_event.event_id
+            and _ep_${paramKey}.website_id = {{websiteId::uuid}}
+            and _ep_${paramKey}.created_at between {{startDate}} and {{endDate}}
+            and _ep_${paramKey}.data_key = {{${kParam}}}
+            and case when _ep_${paramKey}.data_type = 2
+                then replace(_ep_${paramKey}.string_value, '.0000', '')
+                else _ep_${paramKey}.string_value end ${sqlOp} {{${vParam}}}
+        )`);
+        return;
+      }
+
       if (column) {
         const clause = mapFilter(`${prefix}${column}`, operator, name, '', paramName);
         const isAlwaysAnd = name === 'eventType' || (isCohort && name === cohortActionName);
@@ -244,6 +265,20 @@ function getQueryParams(filters: Record<string, any>) {
         column || (name?.startsWith('cohort_') && FILTER_COLUMNS[name.slice('cohort_'.length)]);
 
       if (!resolvedColumn) return obj;
+
+      if (resolvedColumn === 'event_data') {
+        const paramKey = paramName ?? name;
+        const raw = Array.isArray(value) ? value[0] : (value ?? '');
+        const pipeIdx = raw.indexOf('|');
+        const propertyName = pipeIdx >= 0 ? raw.slice(0, pipeIdx) : raw;
+        let propertyValue = pipeIdx >= 0 ? raw.slice(pipeIdx + 1) : '';
+        if (([OPERATORS.contains, OPERATORS.doesNotContain] as Operator[]).includes(operator)) {
+          propertyValue = `%${propertyValue}%`;
+        }
+        obj[`ep_${paramKey}_k`] = propertyName;
+        obj[`ep_${paramKey}_v`] = propertyValue;
+        return obj;
+      }
 
       const key = paramName ?? name;
 

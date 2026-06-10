@@ -115,6 +115,7 @@
     "event": "Event",
     "event-data": "Event data",
     "event-name": "Event name",
+    "event-property": "Event property",
     "events": "Events",
     "exclude-bounce": "Exclude bounce",
     "exists": "Exists",

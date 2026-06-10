@@ -118,6 +118,24 @@ function getFilterQuery(filters: Record<string, any>, options: QueryOptions = {}
       column = FILTER_COLUMNS[name.slice('cohort_'.length)];
     }
 
+    if (column === 'event_data') {
+      const paramKey = paramName ?? name;
+      const kParam = `ep_${paramKey}_k`;
+      const vParam = `ep_${paramKey}_v`;
+      let sqlOp = '=';
+      if (operator === OPERATORS.notEquals) sqlOp = '!=';
+      else if (operator === OPERATORS.contains) sqlOp = 'like';
+      else if (operator === OPERATORS.doesNotContain) sqlOp = 'not like';
+      andClauses.push(`and website_event.event_id in (
+        select event_id from event_data
+        where website_id = {websiteId:UUID}
+          and created_at between {startDate:DateTime64} and {endDate:DateTime64}
+          and data_key = {${kParam}:String}
+          and multiIf(data_type = 2, replaceAll(string_value, '.0000', ''), string_value) ${sqlOp} {${vParam}:String}
+      )`);
+      return;
+    }
+
     if (column) {
       const isAlwaysAnd = name === 'eventType' || (isCohort && name === cohortActionName);
 
@@ -216,6 +234,20 @@ function getQueryParams(filters: Record<string, any>) {
         column || (name?.startsWith('cohort_') && FILTER_COLUMNS[name.slice('cohort_'.length)]);
 
       if (!resolvedColumn || !name || value === undefined) return obj;
+
+      if (resolvedColumn === 'event_data') {
+        const paramKey = paramName ?? name;
+        const raw = Array.isArray(value) ? value[0] : (value ?? '');
+        const pipeIdx = raw.indexOf('|');
+        const propertyName = pipeIdx >= 0 ? raw.slice(0, pipeIdx) : raw;
+        let propertyValue = pipeIdx >= 0 ? raw.slice(pipeIdx + 1) : '';
+        if ([OPERATORS.contains, OPERATORS.doesNotContain].includes(operator)) {
+          propertyValue = `%${propertyValue}%`;
+        }
+        obj[`ep_${paramKey}_k`] = propertyName;
+        obj[`ep_${paramKey}_v`] = propertyValue;
+        return obj;
+      }
 
       const key = paramName ?? name;
 

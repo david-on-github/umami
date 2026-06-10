@@ -1,6 +1,7 @@
 import {
   Button,
   Column,
+  ComboBox,
   Form,
   FormButtons,
   FormField,
@@ -8,14 +9,16 @@ import {
   FormSubmitButton,
   Grid,
   Icon,
+  ListItem,
   ListSeparator,
   Loading,
   Row,
   Text,
   TextField,
 } from '@umami/react-zen';
+import { endOfDay, subMonths } from 'date-fns';
 import { Fragment, useState } from 'react';
-import { useApi, useMessages, useMobile, useReportQuery, useUpdateQuery } from '@/components/hooks';
+import { useApi, useMessages, useMobile, useReportQuery, useUpdateQuery, useWebsiteValuesQuery } from '@/components/hooks';
 import { Plus, X } from '@/components/icons';
 import { ActionSelect } from '@/components/input/ActionSelect';
 import { LookupField } from '@/components/input/LookupField';
@@ -53,6 +56,13 @@ function StepRow({
 
   const hasEventData = (eventProperties?.length ?? 0) > 0;
 
+  const { data: hostnames } = useWebsiteValuesQuery({
+    websiteId,
+    type: 'hostname',
+    startDate: new Date(startAt),
+    endDate: new Date(endAt),
+  });
+
   const valueField = (
     <FormField name={`steps.${index}.value`} rules={{ required: t(labels.required) }}>
       {({ field, context }) => {
@@ -70,6 +80,8 @@ function StepRow({
       }}
     </FormField>
   );
+
+  const hostnameItems = hostnames?.filter(({ value }) => value) ?? [];
 
   return (
     <Column gap>
@@ -102,6 +114,25 @@ function StepRow({
           </Button>
         </Grid>
       )}
+      <FormField name={`steps.${index}.hostname`} label={t(labels.hostname)}>
+        {({ field }) => (
+          <ComboBox
+            {...field}
+            items={hostnameItems}
+            inputValue={field.value ?? ''}
+            onInputChange={field.onChange}
+            formValue="text"
+            allowsEmptyCollection
+            allowsCustomValue
+          >
+            {hostnameItems.map(({ value }) => (
+              <ListItem key={value} id={value}>
+                {value}
+              </ListItem>
+            ))}
+          </ComboBox>
+        )}
+      </FormField>
       <FormFieldArray name={`steps.${index}.filters`}>
         {({ fields: filterFields, append: appendFilter, remove: removeFilter, watch }) => {
           const stepType = watch(`steps.${index}.type`);

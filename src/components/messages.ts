@@ -112,6 +112,7 @@ export const labels: Record<string, string> = {
   event: 'label.event',
   events: 'label.events',
   eventName: 'label.event-name',
+  eventProperty: 'label.event-property',
   excludeBounce: 'label.exclude-bounce',
   query: 'label.query',
   queryParameters: 'label.query-parameters',
