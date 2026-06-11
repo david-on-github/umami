@@ -56,7 +56,7 @@ export function Funnel({ id, name, type, parameters, websiteId }: FunnelProps) {
         </Grid>
         {data?.map(
           (
-            { type, value, filters, visitors, previous, dropped, dropoff, remaining }: FunnelResult,
+            { type, value, hostname, filters, visitors, previous, dropped, dropoff, remaining }: FunnelResult,
             index: number,
           ) => {
             const isPage = type === 'path';
@@ -99,6 +99,12 @@ export function Funnel({ id, name, type, parameters, websiteId }: FunnelProps) {
                         <Icon>{type === 'path' ? <File /> : <Lightning />}</Icon>
                         <Text>{value}</Text>
                       </Row>
+                      {hostname && (
+                        <Row gap="1" style={{ paddingLeft: 28 }}>
+                          <Text color="muted">{t(labels.hostname)}:</Text>
+                          <Text color="muted">{hostname}</Text>
+                        </Row>
+                      )}
                       {filters?.map((f, i) => (
                         <Row key={i} gap="1" style={{ paddingLeft: 28 }}>
                           <Text color="muted">{f.property}</Text>
