@@ -14,7 +14,6 @@ RUN npm install -g pnpm@10
 
 RUN printf 'strictDepBuilds: false\n' > pnpm-workspace.yaml
 
-
 RUN pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
@@ -69,6 +68,8 @@ COPY --from=builder /app/generated ./generated
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+RUN rm -rf /app/node_modules
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 USER nextjs
 
