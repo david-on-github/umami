@@ -15,7 +15,7 @@ import { LoadingPanel } from '@/components/common/LoadingPanel';
 import { useMessages, useMobile, useSessionActivityQuery, useTimezone } from '@/components/hooks';
 import { Eye, FileText } from '@/components/icons';
 import { EventData } from '@/components/metrics/EventData';
-import { Lightning } from '@/components/svg';
+import { Lightning, Website } from '@/components/svg';
 
 export function SessionActivity({
   websiteId,
@@ -62,25 +62,33 @@ export function SessionActivity({
           return (
             <Column key={eventId} gap>
               {showHeader && <Heading size="lg">{formatTimezoneDate(createdAt, 'PPPP')}</Heading>}
-              <Row alignItems="center" gap="6" height="40px">
-                <StatusLight color={`#${visitId?.substring(0, 6)}`}>
-                  <Text wrap="nowrap">{formatTimezoneDate(createdAt, 'pp')}</Text>
-                </StatusLight>
-                <Row alignItems="center" gap="2">
-                  <Icon>{eventName ? <Lightning /> : <Eye />}</Icon>
-                  <Text wrap="nowrap">
-                    {eventName ? t(labels.triggeredEvent) : t(labels.viewedPage)}
-                  </Text>
-                  {hostname && (
-                    <Text color="muted" wrap="nowrap">
-                      {hostname}
+              <Row alignItems="center" gap="6" minHeight="30px" >
+                <div style={{ minWidth: '100px' }}>
+                  <StatusLight color={`#${visitId?.substring(0, 6)}`} >
+                    <Text wrap="nowrap">{formatTimezoneDate(createdAt, 'pp')}</Text>
+                  </StatusLight>
+                </div>
+                <Column gap="1">
+                  <Row alignItems="center" gap="2">
+                    <Icon>{eventName ? <Lightning /> : <Eye />}</Icon>
+                    <Text wrap="nowrap">
+                      {eventName ? t(labels.triggeredEvent) : t(labels.viewedPage)}
                     </Text>
+                    <Text weight="bold" style={{ maxWidth: isMobile ? '400px' : null }} truncate>
+                      {eventName || renderLink(urlPath, hostname)}
+                    </Text>
+                    {hasData > 0 && <PropertiesButton websiteId={websiteId} eventId={eventId} />}
+
+
+
+                  </Row>
+                </Column>
+                <div style={{ marginLeft: 'auto', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {hostname && (
+                    <Text color="muted" size="xs" >{hostname}</Text>
                   )}
-                  <Text weight="bold" style={{ maxWidth: isMobile ? '400px' : null }} truncate>
-                    {eventName || renderLink(urlPath, hostname)}
-                  </Text>
-                  {hasData > 0 && <PropertiesButton websiteId={websiteId} eventId={eventId} />}
-                </Row>
+                  <Website style={{ width: '16px', height: '16px', fill: 'currentColor' }} />
+                </div>
               </Row>
             </Column>
           );
