@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   const parameters = {
     ...filters,
     urlPath: body.parameters.urlPath,
+    urlHostname: body.parameters.urlHostname,
     mode: body.parameters.mode,
   } as HeatmapParameters;
 

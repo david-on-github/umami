@@ -8,13 +8,15 @@ import { useMessages, useMobile, useSubscription, useWebsite } from '@/component
 import { Flame } from '@/components/icons';
 import { FilterButtons } from '@/components/input/FilterButtons';
 import type { HeatmapMode } from '@/queries/sql';
-import { Heatmap } from './Heatmap';
+import { Heatmap, type HeatmapSelection } from './Heatmap';
 import styles from './Heatmap.module.css';
 
+const EMPTY_SELECTION: HeatmapSelection = { urlPath: '', hostname: '' };
+
 export function HeatmapsPage({ websiteId }: { websiteId: string }) {
-  const [urlPathByMode, setUrlPathByMode] = useState<Record<HeatmapMode, string>>({
-    click: '',
-    scroll: '',
+  const [selectionByMode, setSelectionByMode] = useState<Record<HeatmapMode, HeatmapSelection>>({
+    click: EMPTY_SELECTION,
+    scroll: EMPTY_SELECTION,
   });
   const [mode, setMode] = useState<HeatmapMode>('click');
   const [search, setSearch] = useState('');
@@ -88,8 +90,10 @@ export function HeatmapsPage({ websiteId }: { websiteId: string }) {
 
           <Heatmap
             websiteId={websiteId}
-            urlPath={urlPathByMode[mode]}
-            onUrlPathChange={urlPath => setUrlPathByMode(state => ({ ...state, [mode]: urlPath }))}
+            selection={selectionByMode[mode]}
+            onSelectionChange={selection =>
+              setSelectionByMode(state => ({ ...state, [mode]: selection }))
+            }
             mode={mode}
             search={search}
           />

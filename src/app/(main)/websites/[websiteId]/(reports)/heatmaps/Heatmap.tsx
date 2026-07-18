@@ -56,15 +56,21 @@ interface ScreenWidthBucketOptions {
   pageSize?: 'max' | 'weightedAverage';
 }
 
+export interface HeatmapSelection {
+  urlPath: string;
+  hostname: string;
+}
+
 interface HeatmapProps {
   websiteId: string;
-  urlPath: string;
-  onUrlPathChange: (urlPath: string) => void;
+  selection: HeatmapSelection;
+  onSelectionChange: (selection: HeatmapSelection) => void;
   mode: HeatmapMode;
   search: string;
 }
 
-export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: HeatmapProps) {
+export function Heatmap({ websiteId, selection, onSelectionChange, mode, search }: HeatmapProps) {
+  const { urlPath, hostname: urlHostname } = selection;
   const {
     data: pagesData,
     error,
@@ -83,6 +89,7 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
     {
       websiteId,
       urlPath: urlPath || undefined,
+      urlHostname: urlPath ? urlHostname : undefined,
       mode,
     },
     {
@@ -98,7 +105,11 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
 
     const value = search.toLowerCase();
 
-    return pages.filter(page => page.urlPath.toLowerCase().includes(value));
+    return pages.filter(
+      page =>
+        page.urlPath.toLowerCase().includes(value) ||
+        page.hostname.toLowerCase().includes(value),
+    );
   }, [pages, search]);
   const points = detailData?.points ?? [];
   const scroll = detailData?.scroll;
@@ -112,17 +123,23 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
 
     if (filteredPages.length === 0) {
       if (urlPath) {
-        onUrlPathChange('');
+        onSelectionChange({ urlPath: '', hostname: '' });
       }
       return;
     }
 
-    if (!urlPath || filteredPages.some(page => page.urlPath === urlPath)) {
+    if (
+      !urlPath ||
+      filteredPages.some(page => page.urlPath === urlPath && page.hostname === urlHostname)
+    ) {
       return;
     }
 
-    onUrlPathChange(filteredPages[0].urlPath);
-  }, [filteredPages, isLoading, onUrlPathChange, urlPath]);
+    onSelectionChange({
+      urlPath: filteredPages[0].urlPath,
+      hostname: filteredPages[0].hostname,
+    });
+  }, [filteredPages, isLoading, onSelectionChange, urlPath, urlHostname]);
 
   if (!isLoading && pages.length === 0) {
     return (
@@ -137,8 +154,8 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
       <Grid columns="320px 12px 1fr" minHeight="900px" className={styles.layoutGrid}>
         <PageList
           pages={filteredPages}
-          selected={urlPath}
-          onSelect={onUrlPathChange}
+          selection={selection}
+          onSelect={onSelectionChange}
           mode={mode}
           hasSearch={Boolean(search)}
         />
@@ -196,44 +213,72 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
 
 function PageList({
   pages,
-  selected,
+  selection,
   onSelect,
   mode,
   hasSearch,
 }: {
   pages: HeatmapResult['pages'];
-  selected: string;
-  onSelect: (urlPath: string) => void;
+  selection: HeatmapSelection;
+  onSelect: (selection: HeatmapSelection) => void;
   mode: HeatmapMode;
   hasSearch: boolean;
 }) {
-  const getPageMetricTitle = (page: HeatmapResult['pages'][number]) => {
+  const getPageMetricTitle = (page: HeatmapPage) => {
     const metricLabel = mode === 'scroll' ? 'scroll events' : 'clicks';
 
     return `${formatLongNumber(page.sessions)} visitors - ${formatLongNumber(page.count)} ${metricLabel}`;
   };
+
+  const groups = useMemo(() => {
+    const map = new Map<string, HeatmapPage[]>();
+
+    for (const page of pages) {
+      const list = map.get(page.hostname) ?? [];
+
+      list.push(page);
+      map.set(page.hostname, list);
+    }
+
+    return Array.from(map.entries());
+  }, [pages]);
+
+  const renderPage = (page: HeatmapPage) => (
+    <button
+      key={`${page.hostname}|${page.urlPath}`}
+      type="button"
+      onClick={() => onSelect({ urlPath: page.urlPath, hostname: page.hostname })}
+      title={`${page.hostname}${page.urlPath}`}
+      className={`${styles.pageButton} ${
+        selection.urlPath === page.urlPath && selection.hostname === page.hostname
+          ? styles.pageButtonSelected
+          : ''
+      }`}
+    >
+      <Row alignItems="center" justifyContent="space-between" gap="2">
+        <Text truncate>{page.urlPath}</Text>
+        <Text color="muted" className={styles.pageMetric} title={getPageMetricTitle(page)}>
+          {formatLongNumber(page.sessions)}
+        </Text>
+      </Row>
+    </button>
+  );
 
   return (
     <Column className={styles.pageList} gap="1">
       <Heading size="lg">Pages</Heading>
       <Column className={styles.pageListItems} gap="2">
         {pages.length === 0 && hasSearch && <Text color="muted">No matching pages</Text>}
-        {pages.map(page => (
-          <button
-            key={page.urlPath}
-            type="button"
-            onClick={() => onSelect(page.urlPath)}
-            title={page.urlPath}
-            className={`${styles.pageButton} ${selected === page.urlPath ? styles.pageButtonSelected : ''}`}
-          >
-            <Row alignItems="center" justifyContent="space-between" gap="2">
-              <Text truncate>{page.urlPath}</Text>
-              <Text color="muted" className={styles.pageMetric} title={getPageMetricTitle(page)}>
-                {formatLongNumber(page.sessions)}
-              </Text>
-            </Row>
-          </button>
-        ))}
+        {groups.length > 1
+          ? groups.map(([hostname, groupPages]) => (
+              <Column key={hostname || 'unknown'} gap="2">
+                <Text color="muted" size="sm" truncate title={hostname || undefined}>
+                  {hostname || 'Unknown host'}
+                </Text>
+                {groupPages.map(renderPage)}
+              </Column>
+            ))
+          : pages.map(renderPage)}
       </Column>
     </Column>
   );
@@ -1015,13 +1060,22 @@ function PagesTable({
   pages: HeatmapResult['pages'];
   metricLabel: string;
 }) {
+  const showHost = useMemo(() => new Set(pages.map(page => page.hostname)).size > 1, [pages]);
+
   return (
     <DataTable data={pages}>
-      <DataColumn id="urlPath" label="Page" width="2fr">
+      <DataColumn id="urlPath" label="Page" width="2fr" className={styles.pageCell}>
         {(row: HeatmapPage) => (
-          <Text truncate title={row.urlPath}>
-            {row.urlPath}
-          </Text>
+          <Column gap="1" minWidth="0" width="100%">
+            <Text truncate title={`${row.hostname}${row.urlPath}`}>
+              {row.urlPath}
+            </Text>
+            {showHost && (
+              <Text truncate color="muted" size="sm">
+                {row.hostname || 'Unknown host'}
+              </Text>
+            )}
+          </Column>
         )}
       </DataColumn>
       <DataColumn id="sessions" label="Visitors">

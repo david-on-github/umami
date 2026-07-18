@@ -418,6 +418,7 @@ CREATE TABLE umami.heatmap_event
     viewport_h Nullable(Int32),
     page_h Nullable(Int32),
     scroll_pct Nullable(UInt8),
+    src_hostname LowCardinality(String) DEFAULT '',
     created_at DateTime('UTC')
 )
 ENGINE = MergeTree

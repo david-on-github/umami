@@ -37,6 +37,14 @@
   overflow: hidden;
 }
 
+/* Grid cells default to min-width: auto, so a long nowrap page title widens
+   the column and breaks the table layout; allow the cell to shrink and let the
+   title truncate instead. */
+.pageCell {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .pageListItems {
   overflow-y: auto;
   padding-top: 8px;

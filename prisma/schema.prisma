@@ -417,6 +417,7 @@ model HeatmapEvent {
   viewportH        Int?     @map("viewport_h") @db.Integer
   pageH            Int?     @map("page_h") @db.Integer
   scrollPct        Int?     @map("scroll_pct") @db.Integer
+  srcHostname      String?  @map("src_hostname") @db.VarChar(100)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   website Website @relation(fields: [websiteId], references: [id])

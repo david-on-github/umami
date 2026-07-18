@@ -9,6 +9,7 @@ export interface HeatmapEventRow {
   sessionId: string;
   visitId: string;
   urlPath: string;
+  srcHostname: string | null;
   eventType: number;
   x: number | null;
   y: number | null;
@@ -64,6 +65,7 @@ async function relationalQuery(rows: HeatmapEventRow[]) {
       sessionId: r.sessionId,
       visitId: r.visitId,
       urlPath: r.urlPath,
+      srcHostname: r.srcHostname,
       eventType: r.eventType,
       x: r.x,
       y: r.y,
@@ -89,6 +91,7 @@ async function clickhouseQuery(rows: HeatmapEventRow[]) {
     session_id: r.sessionId,
     visit_id: r.visitId,
     url_path: r.urlPath,
+    src_hostname: r.srcHostname ?? '',
     event_type: r.eventType,
     x: r.x,
     y: r.y,

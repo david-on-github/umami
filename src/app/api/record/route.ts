@@ -76,6 +76,14 @@ function getUrlPath(url: string) {
   }
 }
 
+function getUrlHostname(url: string) {
+  try {
+    return new URL(url).hostname.toLowerCase().slice(0, 100) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function getRequestBodySize(request: Request): Promise<number | null> {
   const contentLength = request.headers.get('content-length');
 
@@ -227,6 +235,7 @@ export async function POST(request: Request) {
         pageH: event.pageH ?? null,
         scrollPct: event.type === 'scroll' ? (event.scrollPct ?? null) : null,
         urlPath: getUrlPath(event.url),
+        srcHostname: getUrlHostname(event.url),
         createdAt: new Date(event.timestamp ?? fallbackMs),
       }));
 
