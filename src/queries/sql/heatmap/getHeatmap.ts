@@ -209,6 +209,7 @@ async function relationalQuery(
     const snapshot = await resolveHeatmapSnapshot({
       websiteId,
       urlPath,
+      hostname: getSnapshotHostname(parameters),
       viewportW: viewport?.width ?? null,
       viewportH: viewport?.height ?? null,
       pageW: viewport?.pageW ?? null,
@@ -271,6 +272,7 @@ async function relationalQuery(
   const snapshot = await resolveHeatmapSnapshot({
     websiteId,
     urlPath,
+    hostname: getSnapshotHostname(parameters),
     viewportW: viewport?.width ?? null,
     viewportH: viewport?.height ?? null,
     pageW: viewport?.pageW ?? null,
@@ -414,6 +416,7 @@ async function clickhouseQuery(
     const snapshot = await resolveHeatmapSnapshot({
       websiteId,
       urlPath,
+      hostname: getSnapshotHostname(parameters),
       viewportW: viewport?.width ?? null,
       viewportH: viewport?.height ?? null,
       pageW: viewport?.pageW ?? null,
@@ -500,6 +503,7 @@ async function clickhouseQuery(
   const snapshot = await resolveHeatmapSnapshot({
     websiteId,
     urlPath,
+    hostname: getSnapshotHostname(parameters),
     viewportW: viewport?.width ?? null,
     viewportH: viewport?.height ?? null,
     pageW: viewport?.pageW ?? null,
@@ -523,6 +527,7 @@ function emptyScroll(): HeatmapResult['scroll'] {
 async function resolveHeatmapSnapshot({
   websiteId,
   urlPath,
+  hostname,
   viewportW,
   viewportH,
   pageW,
@@ -530,6 +535,7 @@ async function resolveHeatmapSnapshot({
 }: {
   websiteId: string;
   urlPath: string;
+  hostname: string | null;
   viewportW: number | null;
   viewportH: number | null;
   pageW: number | null;
@@ -538,6 +544,7 @@ async function resolveHeatmapSnapshot({
   return getIframeSnapshot({
     websiteId,
     urlPath,
+    hostname,
     viewportW,
     viewportH,
     pageW,
@@ -548,6 +555,7 @@ async function resolveHeatmapSnapshot({
 async function getIframeSnapshot({
   websiteId,
   urlPath,
+  hostname,
   viewportW,
   viewportH,
   pageW,
@@ -555,6 +563,7 @@ async function getIframeSnapshot({
 }: {
   websiteId: string;
   urlPath: string;
+  hostname: string | null;
   viewportW: number | null;
   viewportH: number | null;
   pageW: number | null;
@@ -565,7 +574,7 @@ async function getIframeSnapshot({
   }
 
   const website = await getWebsite(websiteId);
-  const url = buildHeatmapPageUrl(website?.domain, urlPath);
+  const url = buildHeatmapPageUrl(website?.domain, urlPath, hostname);
 
   if (!url) {
     return null;
@@ -585,12 +594,36 @@ async function getIframeSnapshot({
   };
 }
 
-function getFirstDomain(domain?: string | null) {
-  return domain?.split(',')[0]?.trim() || null;
+function getDomainList(domain?: string | null) {
+  return (
+    domain
+      ?.split(',')
+      .map(entry => entry.trim())
+      .filter(Boolean) ?? []
+  );
 }
 
-function getWebsiteOrigin(domain?: string | null) {
-  const host = getFirstDomain(domain);
+function getDomainHost(entry: string) {
+  try {
+    const url =
+      entry.startsWith('http://') || entry.startsWith('https://')
+        ? new URL(entry)
+        : new URL(`https://${entry}`);
+
+    return url.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function getWebsiteOrigin(domain?: string | null, hostname?: string | null) {
+  const entries = getDomainList(domain);
+  // Only render a hostname that is one of the website's configured domains so
+  // the iframe cannot be pointed at an arbitrary host via a crafted filter.
+  const preferred = hostname
+    ? entries.find(entry => getDomainHost(entry) === hostname.toLowerCase())
+    : undefined;
+  const host = preferred ?? entries[0];
 
   if (!host) {
     return null;
@@ -608,9 +641,13 @@ function getWebsiteOrigin(domain?: string | null) {
   return new URL(`${protocol}://${host}`);
 }
 
-function buildHeatmapPageUrl(domain: string | null | undefined, urlPath: string) {
+function buildHeatmapPageUrl(
+  domain: string | null | undefined,
+  urlPath: string,
+  hostname?: string | null,
+) {
   try {
-    const origin = getWebsiteOrigin(domain);
+    const origin = getWebsiteOrigin(domain, hostname);
 
     if (!origin) {
       return null;
@@ -620,6 +657,15 @@ function buildHeatmapPageUrl(domain: string | null | undefined, urlPath: string)
   } catch {
     return null;
   }
+}
+
+function getSnapshotHostname(filters: QueryFilters): string | null {
+  const filter = filtersObjectToArray(filters).find(
+    f => f.name === 'hostname' && f.operator === OPERATORS.equals,
+  );
+  const value = Array.isArray(filter?.value) ? filter.value[0] : filter?.value;
+
+  return typeof value === 'string' && value ? value : null;
 }
 
 function pickSnapshotViewport(

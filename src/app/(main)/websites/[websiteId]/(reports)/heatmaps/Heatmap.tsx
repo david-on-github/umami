@@ -1,6 +1,8 @@
 'use client';
 import {
   Column,
+  DataColumn,
+  DataTable,
   Grid,
   Heading,
   Icon,
@@ -8,6 +10,10 @@ import {
   Loading,
   Row,
   Select,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
   Text,
 } from '@umami/react-zen';
 import { Laptop, Monitor, Smartphone, Tablet } from 'lucide-react';
@@ -15,7 +21,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoadingPanel } from '@/components/common/LoadingPanel';
 import { useResultQuery } from '@/components/hooks';
 import { formatLongNumber } from '@/lib/format';
-import type { HeatmapMode, HeatmapPoint, HeatmapResult, HeatmapSnapshot } from '@/queries/sql';
+import type {
+  HeatmapMode,
+  HeatmapPage,
+  HeatmapPoint,
+  HeatmapResult,
+  HeatmapSnapshot,
+} from '@/queries/sql';
 import styles from './Heatmap.module.css';
 
 const SCROLL_BUCKET_SIZE = 10;
@@ -132,25 +144,50 @@ export function Heatmap({ websiteId, urlPath, onUrlPathChange, mode, search }: H
         />
         <div className={styles.railDivider} aria-hidden="true" />
         <Column className={styles.contentColumn} gap>
-          {urlPath ? (
-            mode === 'scroll' ? (
-              <ScrollHeatmapView
-                urlPath={urlPath}
-                scroll={scroll}
-                snapshot={snapshot}
-                isLoading={detailLoading}
-              />
-            ) : (
-              <ClickHeatmapView
-                urlPath={urlPath}
-                points={points}
-                snapshot={snapshot}
-                isLoading={detailLoading}
-              />
-            )
-          ) : (
-            <EmptyState />
-          )}
+          <Tabs className={styles.tabs}>
+            <TabList>
+              <Tab id="heatmap">Heatmap</Tab>
+              <Tab id="tables">Summary</Tab>
+            </TabList>
+            <TabPanel id="heatmap" className={styles.tabPanel}>
+              {urlPath ? (
+                mode === 'scroll' ? (
+                  <ScrollHeatmapView
+                    urlPath={urlPath}
+                    scroll={scroll}
+                    snapshot={snapshot}
+                    isLoading={detailLoading}
+                  />
+                ) : (
+                  <ClickHeatmapView
+                    urlPath={urlPath}
+                    points={points}
+                    snapshot={snapshot}
+                    isLoading={detailLoading}
+                  />
+                )
+              ) : (
+                <EmptyState />
+              )}
+            </TabPanel>
+            <TabPanel id="tables" className={styles.tabPanel}>
+              {mode === 'scroll' ? (
+                <ScrollTables
+                  pages={filteredPages}
+                  scroll={scroll}
+                  urlPath={urlPath}
+                  isLoading={detailLoading}
+                />
+              ) : (
+                <ClickTables
+                  pages={filteredPages}
+                  points={points}
+                  urlPath={urlPath}
+                  isLoading={detailLoading}
+                />
+              )}
+            </TabPanel>
+          </Tabs>
         </Column>
       </Grid>
     </LoadingPanel>
@@ -200,6 +237,18 @@ function PageList({
       </Column>
     </Column>
   );
+}
+
+function formatSnapshotPath(snapshot: HeatmapSnapshot | null, urlPath: string) {
+  if (!snapshot?.url) {
+    return urlPath;
+  }
+
+  try {
+    return `${new URL(snapshot.url).host}${urlPath}`;
+  } catch {
+    return urlPath;
+  }
 }
 
 function getScreenWidthBucketWidth(viewportW: number) {
@@ -604,8 +653,8 @@ function ClickHeatmapView({
     <Column gap>
       <Column gap="2" className={styles.summaryHeader}>
         <Row alignItems="center" justifyContent="space-between" gap>
-          <Text color="muted" title={urlPath} className={styles.summaryPath}>
-            {urlPath}
+          <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
+            {formatSnapshotPath(snapshot, urlPath)}
           </Text>
         </Row>
         {showLoading ? (
@@ -777,8 +826,8 @@ function ScrollHeatmapView({
 
   return (
     <Column gap>
-      <Text color="muted" title={urlPath} className={styles.summaryPath}>
-        {urlPath}
+      <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
+        {formatSnapshotPath(snapshot, urlPath)}
       </Text>
       {showLoading ? (
         <Row alignItems="center" gap className={styles.summaryStats}>
@@ -926,6 +975,209 @@ function IframeSnapshot({
         onError={handleError}
       />
     </div>
+  );
+}
+
+interface ScreenWidthTableRow {
+  width: number;
+  positions: number;
+  count: number;
+}
+
+// width 0 marks the aggregate "All widths" row.
+function withAllWidthsRow(buckets: ScreenWidthBucket[]): ScreenWidthTableRow[] {
+  if (!buckets.length) {
+    return [];
+  }
+
+  return [
+    {
+      width: 0,
+      positions: buckets.reduce((sum, bucket) => sum + bucket.positions, 0),
+      count: buckets.reduce((sum, bucket) => sum + bucket.count, 0),
+    },
+    ...buckets.map(({ width, positions, count }) => ({ width, positions, count })),
+  ];
+}
+
+function ScreenWidthRowLabel({ width }: { width: number }) {
+  if (!width) {
+    return <Text weight="bold">All widths</Text>;
+  }
+
+  return <ScreenWidthValue width={width} />;
+}
+
+function PagesTable({
+  pages,
+  metricLabel,
+}: {
+  pages: HeatmapResult['pages'];
+  metricLabel: string;
+}) {
+  return (
+    <DataTable data={pages}>
+      <DataColumn id="urlPath" label="Page" width="2fr">
+        {(row: HeatmapPage) => (
+          <Text truncate title={row.urlPath}>
+            {row.urlPath}
+          </Text>
+        )}
+      </DataColumn>
+      <DataColumn id="sessions" label="Visitors">
+        {(row: HeatmapPage) => formatLongNumber(row.sessions)}
+      </DataColumn>
+      <DataColumn id="count" label={metricLabel}>
+        {(row: HeatmapPage) => formatLongNumber(row.count)}
+      </DataColumn>
+    </DataTable>
+  );
+}
+
+function ClickTables({
+  pages,
+  points,
+  urlPath,
+  isLoading,
+}: {
+  pages: HeatmapResult['pages'];
+  points: HeatmapPoint[];
+  urlPath: string;
+  isLoading: boolean;
+}) {
+  const buckets = useMemo(() => getScreenWidthBuckets(points), [points]);
+  const rows = useMemo(() => withAllWidthsRow(buckets), [buckets]);
+
+  return (
+    <Column gap="6" paddingTop="4">
+      {urlPath && (
+        <Column gap="3">
+          <Heading size="sm" title={urlPath}>
+            {`${urlPath} — clicks by screen width`}
+          </Heading>
+          {isLoading ? (
+            <Loading icon="dots" placement="center" />
+          ) : rows.length ? (
+            <DataTable data={rows}>
+              <DataColumn id="width" label="Screen width" width="2fr">
+                {(row: ScreenWidthTableRow) => <ScreenWidthRowLabel width={row.width} />}
+              </DataColumn>
+              <DataColumn id="positions" label="Positions">
+                {(row: ScreenWidthTableRow) => formatLongNumber(row.positions)}
+              </DataColumn>
+              <DataColumn id="count" label="Clicks">
+                {(row: ScreenWidthTableRow) => formatLongNumber(row.count)}
+              </DataColumn>
+            </DataTable>
+          ) : (
+            <Text color="muted">No click data for this page yet.</Text>
+          )}
+        </Column>
+      )}
+      <Column gap="3">
+        <Heading size="sm">Clicks by page (all screen widths)</Heading>
+        <PagesTable pages={pages} metricLabel="Clicks" />
+      </Column>
+    </Column>
+  );
+}
+
+function getAggregateScrollDepthRows(scroll: HeatmapResult['scroll'] | undefined) {
+  const buckets = scroll?.buckets ?? [];
+
+  if (!buckets.length) {
+    return [];
+  }
+
+  const sessionsByDepth = new Map<number, number>();
+
+  for (const bucket of buckets) {
+    sessionsByDepth.set(bucket.depth, (sessionsByDepth.get(bucket.depth) ?? 0) + bucket.sessions);
+  }
+
+  const total = Array.from(sessionsByDepth.values()).reduce((sum, value) => sum + value, 0);
+  const rows: { depth: number; sessions: number; ratio: number }[] = [];
+  let dropped = 0;
+
+  for (let depth = 0; depth < 100; depth += SCROLL_BUCKET_SIZE) {
+    dropped += sessionsByDepth.get(depth) ?? 0;
+    const sessions = Math.max(0, total - dropped);
+
+    rows.push({
+      depth: Math.min(100, depth + SCROLL_BUCKET_SIZE),
+      sessions,
+      ratio: total ? sessions / total : 0,
+    });
+  }
+
+  return rows;
+}
+
+function ScrollTables({
+  pages,
+  scroll,
+  urlPath,
+  isLoading,
+}: {
+  pages: HeatmapResult['pages'];
+  scroll: HeatmapResult['scroll'] | undefined;
+  urlPath: string;
+  isLoading: boolean;
+}) {
+  const metrics = useMemo(() => getScrollScreenWidthMetrics(scroll), [scroll]);
+  const buckets = useMemo(
+    () => getScreenWidthBuckets(metrics, { pageSize: 'weightedAverage' }),
+    [metrics],
+  );
+  const depthRows = useMemo(() => getAggregateScrollDepthRows(scroll), [scroll]);
+  const widthRows = useMemo(() => withAllWidthsRow(buckets), [buckets]);
+
+  return (
+    <Column gap="6" paddingTop="4">
+      {urlPath && (
+        <Column gap="3">
+          <Heading size="sm" title={urlPath}>
+            {`${urlPath} — scroll depth (all screen widths)`}
+          </Heading>
+          {isLoading ? (
+            <Loading icon="dots" placement="center" />
+          ) : depthRows.length ? (
+            <DataTable data={depthRows}>
+              <DataColumn id="depth" label="Depth reached">
+                {(row: { depth: number }) => `${row.depth}%`}
+              </DataColumn>
+              <DataColumn id="sessions" label="Sessions">
+                {(row: { sessions: number }) => formatLongNumber(row.sessions)}
+              </DataColumn>
+              <DataColumn id="ratio" label="% of sessions">
+                {(row: { ratio: number }) => `${Math.round(row.ratio * 100)}%`}
+              </DataColumn>
+            </DataTable>
+          ) : (
+            <Text color="muted">No scroll data for this page yet.</Text>
+          )}
+        </Column>
+      )}
+      {urlPath && !isLoading && buckets.length > 0 && (
+        <Column gap="3">
+          <Heading size="sm" title={urlPath}>
+            {`${urlPath} — sessions by screen width`}
+          </Heading>
+          <DataTable data={widthRows}>
+            <DataColumn id="width" label="Screen width" width="2fr">
+              {(row: ScreenWidthTableRow) => <ScreenWidthRowLabel width={row.width} />}
+            </DataColumn>
+            <DataColumn id="count" label="Sessions">
+              {(row: ScreenWidthTableRow) => formatLongNumber(row.count)}
+            </DataColumn>
+          </DataTable>
+        </Column>
+      )}
+      <Column gap="3">
+        <Heading size="sm">Scroll events by page (all screen widths)</Heading>
+        <PagesTable pages={pages} metricLabel="Scroll events" />
+      </Column>
+    </Column>
   );
 }
 
