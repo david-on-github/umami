@@ -40,31 +40,38 @@ export function EventsTable(props: DataTableProps) {
 
   return (
     <DataTable {...props}>
-      <DataColumn id="event" label={t(labels.event)} width="2fr">
+      <DataColumn id="event" label={t(labels.event)} width="minmax(0, 2fr)">
         {(row: any) => {
           return (
-            <Row alignItems="center" wrap="wrap" gap>
-              <Row>
+            <Row alignItems="center" gap="2" wrap="nowrap" style={{ minWidth: 0 }}>
+              <Row style={{ flexShrink: 0 }}>
                 <IconLabel
                   icon={row.eventName ? <Lightning /> : <Eye />}
                   label={t(row.eventName ? labels.triggeredEvent : labels.viewedPage)}
+                  labelProps={{ wrap: 'nowrap' }}
                 />
               </Row>
-              <Text
-                weight="bold"
-                style={{ maxWidth: '300px' }}
-                title={row.eventName || row.urlPath}
-                truncate
-              >
-                {row.eventName || renderLink(row.urlPath, row.hostname)}
-              </Text>
-              {row.hasData > 0 && <PropertiesButton websiteId={row.websiteId} eventId={row.id} />}
+              <Row alignItems="center" gap wrap="nowrap" style={{ minWidth: 0 }}>
+                <Text
+                  weight="bold"
+                  style={{ maxWidth: '300px' }}
+                  title={row.eventName || row.urlPath}
+                  truncate
+                >
+                  {row.eventName || renderLink(row.urlPath, row.hostname)}
+                </Text>
+                {row.hasData > 0 && <PropertiesButton websiteId={row.websiteId} eventId={row.id} />}
+              </Row>
             </Row>
           );
         }}
       </DataColumn>
-      <DataColumn id="hostname" label={t(labels.hostname)} width="160px">
-        {(row: any) => row.hostname}
+      <DataColumn id="hostname" label={t(labels.hostname)} width="200px">
+        {(row: any) => (
+          <Text title={row.hostname} truncate>
+            {row.hostname}
+          </Text>
+        )}
       </DataColumn>
       <DataColumn id="session" label={t(labels.session)} width="80px">
         {(row: any) => {
@@ -113,7 +120,7 @@ const PropertiesButton = props => {
           </Icon>
         </Row>
       </Button>
-      <Popover placement="right">
+      <Popover side="right" sideOffset={8}>
         <Dialog>
           <EventData {...props} />
         </Dialog>

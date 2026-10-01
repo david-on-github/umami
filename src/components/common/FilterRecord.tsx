@@ -10,13 +10,19 @@ import {
   Select,
   TextField,
 } from '@umami/react-zen';
-import { useState } from 'react';
+import { endOfDay, subMonths } from 'date-fns';
+import { useEffect, useState } from 'react';
 import { Empty } from '@/components/common/Empty';
-import { MultiSelect } from '@/components/common/MultiSelect';
-import { useApi, useFilters, useFormat, useMessages, useWebsiteValuesQuery } from '@/components/hooks';
+import { MultiSelect, MultiSelectItem } from '@/components/common/MultiSelect';
+import {
+  useApi,
+  useFilters,
+  useFormat,
+  useMessages,
+  useWebsiteValuesQuery,
+} from '@/components/hooks';
 import { X } from '@/components/icons';
 import { isSearchOperator } from '@/lib/params';
-import { endOfDay, subMonths } from 'date-fns';
 
 export interface FilterRecordProps {
   websiteId?: string;
@@ -29,6 +35,12 @@ export interface FilterRecordProps {
   onSelect?: (name: string, value: any) => void;
   onRemove?: (name: string) => void;
   onChange?: (name: string, value: string) => void;
+}
+
+function getSelectedValues(value: string | string[], operator: string) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  return isSearchOperator(operator) ? [value] : value.split(',');
 }
 
 function EventPropertyFilter({
@@ -79,13 +91,8 @@ function EventPropertyFilter({
           aria-label="property"
           items={properties}
           inputValue={propertyName}
-          onInputChange={handlePropertyChange}
-          formValue="text"
-          allowsEmptyCollection
-          allowsCustomValue
-          renderEmptyState={() =>
-            isLoading ? <Loading icon="dots" /> : <Empty />
-          }
+          onInputValueChange={handlePropertyChange}
+          renderEmptyState={() => (isLoading ? <Loading icon="dots" /> : <Empty />)}
         >
           {properties.map(p => (
             <ListItem key={p} id={p}>
@@ -131,8 +138,8 @@ function StandardFilterRecord({
   onChange,
 }: FilterRecordProps) {
   const { fields, operators } = useFilters();
-  const initValues = Array.isArray(value) ? value : value ? value.split(',') : [];
-  const [selected, setSelected] = useState<string[]>(initValues);
+  const isSearch = isSearchOperator(operator);
+  const [selected, setSelected] = useState<string[]>(() => getSelectedValues(value, operator));
   const [search, setSearch] = useState('');
   const { formatValue } = useFormat();
   const { data, isLoading } = useWebsiteValuesQuery({
@@ -142,8 +149,11 @@ function StandardFilterRecord({
     startDate,
     endDate,
   });
-  const isSearch = isSearchOperator(operator);
   const items = data?.filter(({ value }) => value) || [];
+
+  useEffect(() => {
+    setSelected(getSelectedValues(value, operator));
+  }, [operator, value]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -164,7 +174,7 @@ function StandardFilterRecord({
   };
 
   return (
-    <Column>
+    <Column gap="1">
       <Label>{fields.find(f => f.name === name)?.label}</Label>
       <Grid columns="1fr auto" gap>
         <Grid columns={{ base: '1fr', md: '200px 1fr' }} gap>
@@ -197,9 +207,9 @@ function StandardFilterRecord({
               allowSearch
             >
               {items.map(({ value }) => (
-                <ListItem key={value} id={value}>
+                <MultiSelectItem key={value} value={value}>
                   {formatValue(value, type)}
-                </ListItem>
+                </MultiSelectItem>
               ))}
             </MultiSelect>
           )}

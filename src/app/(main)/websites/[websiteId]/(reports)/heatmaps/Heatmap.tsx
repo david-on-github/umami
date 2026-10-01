@@ -1,13 +1,16 @@
 'use client';
 import {
+  Button,
   Column,
   DataColumn,
   DataTable,
+  Dialog,
   Grid,
   Heading,
   Icon,
   ListItem,
   Loading,
+  Modal,
   Row,
   Select,
   Tab,
@@ -18,8 +21,11 @@ import {
 } from '@umami/react-zen';
 import { Laptop, Monitor, Smartphone, Tablet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ControlledDialog } from '@/components/common/ControlledDialog';
+import { IconLabel } from '@/components/common/IconLabel';
 import { LoadingPanel } from '@/components/common/LoadingPanel';
-import { useResultQuery } from '@/components/hooks';
+import { useHeatmapQuery, useMobile } from '@/components/hooks';
+import { ListCheck } from '@/components/icons';
 import { formatLongNumber } from '@/lib/format';
 import type {
   HeatmapMode,
@@ -71,11 +77,13 @@ interface HeatmapProps {
 
 export function Heatmap({ websiteId, selection, onSelectionChange, mode, search }: HeatmapProps) {
   const { urlPath, hostname: urlHostname } = selection;
+  const { isPhone } = useMobile();
+  const [isPagePickerOpen, setIsPagePickerOpen] = useState(false);
   const {
     data: pagesData,
     error,
     isLoading,
-  } = useResultQuery<HeatmapResult>('heatmap', {
+  } = useHeatmapQuery({
     websiteId,
     mode,
   });
@@ -84,8 +92,7 @@ export function Heatmap({ websiteId, selection, onSelectionChange, mode, search 
     data: detailData,
     isLoading: isDetailLoading,
     isFetching: isDetailFetching,
-  } = useResultQuery<HeatmapResult>(
-    'heatmap',
+  } = useHeatmapQuery(
     {
       websiteId,
       urlPath: urlPath || undefined,
@@ -107,10 +114,11 @@ export function Heatmap({ websiteId, selection, onSelectionChange, mode, search 
 
     return pages.filter(
       page =>
-        page.urlPath.toLowerCase().includes(value) ||
-        page.hostname.toLowerCase().includes(value),
+        page.urlPath.toLowerCase().includes(value) || page.hostname.toLowerCase().includes(value),
     );
   }, [pages, search]);
+  const selectedPage =
+    filteredPages.find(page => page.urlPath === urlPath && page.hostname === urlHostname) ?? null;
   const points = detailData?.points ?? [];
   const scroll = detailData?.scroll;
   const snapshot = detailData?.snapshot ?? null;
@@ -151,16 +159,38 @@ export function Heatmap({ websiteId, selection, onSelectionChange, mode, search 
 
   return (
     <LoadingPanel data={pagesData} isLoading={isLoading} error={error} minHeight="900px">
-      <Grid columns="320px 12px 1fr" minHeight="900px" className={styles.layoutGrid}>
-        <PageList
-          pages={filteredPages}
-          selection={selection}
-          onSelect={onSelectionChange}
-          mode={mode}
-          hasSearch={Boolean(search)}
-        />
-        <div className={styles.railDivider} aria-hidden="true" />
-        <Column className={styles.contentColumn} gap>
+      {isPhone ? (
+        <Column gap="4" minHeight="900px">
+          <Column gap="2" className={styles.mobilePageSection}>
+            <Row
+              alignItems="center"
+              justifyContent="space-between"
+              gap
+              className={styles.mobilePageHeader}
+            >
+              <Text color="muted" className={styles.mobileSectionLabel}>
+                Selected page
+              </Text>
+              <Button variant="outline" onPress={() => setIsPagePickerOpen(true)}>
+                <IconLabel icon={<ListCheck />} label="Pages" />
+              </Button>
+            </Row>
+            {selectedPage && (
+              <button
+                type="button"
+                className={styles.mobileSelectedPageButton}
+                onClick={() => setIsPagePickerOpen(true)}
+              >
+                <Row alignItems="center" justifyContent="space-between" gap="3">
+                  <Text truncate>{selectedPage.urlPath}</Text>
+                  <Text color="muted" className={styles.pageMetric}>
+                    {formatLongNumber(selectedPage.sessions)}
+                  </Text>
+                </Row>
+              </button>
+            )}
+          </Column>
+
           <Tabs className={styles.tabs}>
             <TabList>
               <Tab id="heatmap">Heatmap</Tab>
@@ -205,8 +235,99 @@ export function Heatmap({ websiteId, selection, onSelectionChange, mode, search 
               )}
             </TabPanel>
           </Tabs>
+
+          <ControlledDialog>
+            <Modal
+              isOpen={isPagePickerOpen}
+              onOpenChange={isOpen => setIsPagePickerOpen(isOpen)}
+              placement="fullscreen"
+            >
+              <Dialog
+                title="Pages"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  maxHeight: '100%',
+                  overflowY: 'auto',
+                  padding: '24px',
+                }}
+              >
+                {({ close }) => (
+                  <PageList
+                    pages={filteredPages}
+                    selection={selection}
+                    onSelect={nextSelection => {
+                      onSelectionChange(nextSelection);
+                      setIsPagePickerOpen(false);
+                      close();
+                    }}
+                    mode={mode}
+                    hasSearch={Boolean(search)}
+                    showHeading={false}
+                  />
+                )}
+              </Dialog>
+            </Modal>
+          </ControlledDialog>
         </Column>
-      </Grid>
+      ) : (
+        <Grid columns="320px 12px 1fr" minHeight="900px" className={styles.layoutGrid}>
+          <PageList
+            pages={filteredPages}
+            selection={selection}
+            onSelect={onSelectionChange}
+            mode={mode}
+            hasSearch={Boolean(search)}
+          />
+          <div className={styles.railDivider} aria-hidden="true" />
+          <Column className={styles.contentColumn} gap>
+            <Tabs className={styles.tabs}>
+              <TabList>
+                <Tab id="heatmap">Heatmap</Tab>
+                <Tab id="tables">Summary</Tab>
+              </TabList>
+              <TabPanel id="heatmap" className={styles.tabPanel}>
+                {urlPath ? (
+                  mode === 'scroll' ? (
+                    <ScrollHeatmapView
+                      urlPath={urlPath}
+                      scroll={scroll}
+                      snapshot={snapshot}
+                      isLoading={detailLoading}
+                    />
+                  ) : (
+                    <ClickHeatmapView
+                      urlPath={urlPath}
+                      points={points}
+                      snapshot={snapshot}
+                      isLoading={detailLoading}
+                    />
+                  )
+                ) : (
+                  <EmptyState />
+                )}
+              </TabPanel>
+              <TabPanel id="tables" className={styles.tabPanel}>
+                {mode === 'scroll' ? (
+                  <ScrollTables
+                    pages={filteredPages}
+                    scroll={scroll}
+                    urlPath={urlPath}
+                    isLoading={detailLoading}
+                  />
+                ) : (
+                  <ClickTables
+                    pages={filteredPages}
+                    points={points}
+                    urlPath={urlPath}
+                    isLoading={detailLoading}
+                  />
+                )}
+              </TabPanel>
+            </Tabs>
+          </Column>
+        </Grid>
+      )}
     </LoadingPanel>
   );
 }
@@ -217,12 +338,14 @@ function PageList({
   onSelect,
   mode,
   hasSearch,
+  showHeading = true,
 }: {
   pages: HeatmapResult['pages'];
   selection: HeatmapSelection;
   onSelect: (selection: HeatmapSelection) => void;
   mode: HeatmapMode;
   hasSearch: boolean;
+  showHeading?: boolean;
 }) {
   const getPageMetricTitle = (page: HeatmapPage) => {
     const metricLabel = mode === 'scroll' ? 'scroll events' : 'clicks';
@@ -266,7 +389,7 @@ function PageList({
 
   return (
     <Column className={styles.pageList} gap="1">
-      <Heading size="lg">Pages</Heading>
+      {showHeading && <Heading size="lg">Pages</Heading>}
       <Column className={styles.pageListItems} gap="2">
         {pages.length === 0 && hasSearch && <Text color="muted">No matching pages</Text>}
         {groups.length > 1
@@ -640,6 +763,7 @@ function ClickHeatmapView({
   snapshot: HeatmapSnapshot | null;
   isLoading: boolean;
 }) {
+  const { isPhone } = useMobile();
   const [snapshotReady, setSnapshotReady] = useState(false);
   const screenWidthBuckets = useMemo(() => getScreenWidthBuckets(points), [points]);
   const { viewport, setSelectedScreenWidth } = useSelectedScreenWidthBucket(screenWidthBuckets);
@@ -665,19 +789,12 @@ function ClickHeatmapView({
   }, [hasSnapshot, snapshot?.id]);
   const overlayGutter = Math.max(48, Math.round((viewport?.width ?? 1920) * 0.04));
   const maxPointX = visible.reduce((max, point) => Math.max(max, point.pageX), 0);
-  // Size the canvas to the actual page content (snapshot/viewport height) only.
-  // Outlier clicks recorded far below the real content are clipped by the
-  // canvas's `overflow: hidden` rather than stretching the canvas and leaving a
-  // large empty band at the bottom.
+  const snapshotHeight = snapshot ? getSnapshotFrameHeight(snapshot) : 0;
+  // Keep the canvas sized to real content and clip outlier clicks instead of stretching it.
   const baseWidth = Math.max(viewport?.pageW ?? 0, maxPointX + overlayGutter, 1);
   const renderWidth = viewport?.width ?? snapshot?.viewportW ?? baseWidth;
-  // When we have a snapshot, its captured page height is the authoritative
-  // content height (it ends at the real page bottom). Use it directly so the
-  // canvas isn't stretched by an inflated aggregate `viewport.pageH` from tall
-  // outlier sessions. Outlier click dots below the content are clipped by the
-  // canvas's `overflow: hidden`. Fall back to the aggregate height only when no
-  // snapshot is available.
-  const contentHeight = snapshot?.pageH || viewport?.pageH || 0;
+  // Match the canvas height to the snapshot height we actually render.
+  const contentHeight = snapshotHeight || viewport?.pageH || 0;
   const renderHeight = Math.max(contentHeight, 640);
   const hasMeasuredWidth = Boolean(viewport?.width || snapshot?.viewportW || maxPointX);
   const fit = useCanvasFit(renderWidth, renderHeight);
@@ -697,17 +814,27 @@ function ClickHeatmapView({
   return (
     <Column gap>
       <Column gap="2" className={styles.summaryHeader}>
-        <Row alignItems="center" justifyContent="space-between" gap>
-          <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
-            {formatSnapshotPath(snapshot, urlPath)}
-          </Text>
-        </Row>
+        {!isPhone && (
+          <Row alignItems="center" justifyContent="space-between" gap>
+            <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
+              {formatSnapshotPath(snapshot, urlPath)}
+            </Text>
+          </Row>
+        )}
         {showLoading ? (
           <Row alignItems="center" gap className={styles.summaryStats}>
             <Text color="muted" className={styles.summaryStat}>
               Loading Heatmap...
             </Text>
           </Row>
+        ) : isPhone ? (
+          <Column gap="2" className={styles.mobileSummaryControls}>
+            <ScreenWidthSelect
+              buckets={screenWidthBuckets}
+              value={viewport?.width ?? null}
+              onChange={setSelectedScreenWidth}
+            />
+          </Column>
         ) : (
           <Row
             alignItems="center"
@@ -806,6 +933,7 @@ function ScrollHeatmapView({
   snapshot: HeatmapSnapshot | null;
   isLoading: boolean;
 }) {
+  const { isPhone } = useMobile();
   const [snapshotReady, setSnapshotReady] = useState(false);
   const handleSnapshotReady = useCallback(() => setSnapshotReady(true), []);
   const hasSnapshot = Boolean(snapshot);
@@ -828,8 +956,9 @@ function ScrollHeatmapView({
   const pageH = viewport?.pageH ?? scroll?.pageH ?? 0;
   const viewportW = viewport?.width ?? scroll?.viewportW ?? 0;
   const viewportH = viewport?.viewportH ?? scroll?.viewportH ?? 0;
+  const snapshotHeight = snapshot ? getSnapshotFrameHeight(snapshot) : 0;
   const baseWidth = Math.max(pageW, 1);
-  const baseHeight = Math.max(pageH, 640);
+  const baseHeight = Math.max(snapshotHeight || pageH, 640);
   const renderWidth = viewport?.width ?? snapshot?.viewportW ?? viewportW ?? baseWidth;
   const renderHeight = baseHeight;
   const hasMeasuredWidth = Boolean(viewport?.width || snapshot?.viewportW || viewportW || pageW);
@@ -848,7 +977,12 @@ function ScrollHeatmapView({
       : `Grouped recorded widths from ${viewport.minViewportW}px to ${viewport.maxViewportW}px`
     : undefined;
 
-  type Band = { fromPct: number; toPct: number; reached: number; ratio: number };
+  type Band = {
+    fromPct: number;
+    toPct: number;
+    reached: number;
+    ratio: number;
+  };
   const bands: Band[] = [];
   const sessionsByDepth = new Map(selectedBuckets.map(bucket => [bucket.depth, bucket.sessions]));
   let dropped = 0;
@@ -871,15 +1005,25 @@ function ScrollHeatmapView({
 
   return (
     <Column gap>
-      <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
-        {formatSnapshotPath(snapshot, urlPath)}
-      </Text>
+      {!isPhone && (
+        <Text color="muted" title={snapshot?.url ?? urlPath} className={styles.summaryPath}>
+          {formatSnapshotPath(snapshot, urlPath)}
+        </Text>
+      )}
       {showLoading ? (
         <Row alignItems="center" gap className={styles.summaryStats}>
           <Text color="muted" className={styles.summaryStat}>
             Loading Heatmap...
           </Text>
         </Row>
+      ) : isPhone ? (
+        <Column gap="2" className={styles.mobileSummaryControls}>
+          <ScreenWidthSelect
+            buckets={screenWidthBuckets}
+            value={viewport?.width ?? null}
+            onChange={setSelectedScreenWidth}
+          />
+        </Column>
       ) : (
         <Row
           alignItems="center"
@@ -968,6 +1112,17 @@ function ScrollHeatmapView({
   );
 }
 
+function getSnapshotFrameHeight(snapshot: HeatmapSnapshot) {
+  const { pageH, viewportH } = snapshot;
+
+  // Use the recorded viewport height for near-single-screen pages so `100vh` matches the visitor's screen.
+  if (pageH <= viewportH * 1.25) {
+    return viewportH;
+  }
+
+  return pageH;
+}
+
 function SnapshotPreview({
   snapshot,
   onReady,
@@ -978,15 +1133,10 @@ function SnapshotPreview({
   return <IframeSnapshot snapshot={snapshot} onReady={onReady} />;
 }
 
-function IframeSnapshot({
-  snapshot,
-  onReady,
-}: {
-  snapshot: HeatmapSnapshot;
-  onReady: () => void;
-}) {
+function IframeSnapshot({ snapshot, onReady }: { snapshot: HeatmapSnapshot; onReady: () => void }) {
   const [available, setAvailable] = useState(true);
   const iframeUrl = snapshot.url;
+  const frameHeight = getSnapshotFrameHeight(snapshot);
 
   useEffect(() => {
     setAvailable(true);
@@ -1007,7 +1157,12 @@ function IframeSnapshot({
   }
 
   return (
-    <div className={styles.snapshot}>
+    <div
+      className={styles.snapshot}
+      style={{
+        height: Math.max(1, frameHeight),
+      }}
+    >
       <iframe
         className={`${styles.snapshotIframe} rr-block`}
         src={iframeUrl}
@@ -1041,7 +1196,11 @@ function withAllWidthsRow(buckets: ScreenWidthBucket[]): ScreenWidthTableRow[] {
       positions: buckets.reduce((sum, bucket) => sum + bucket.positions, 0),
       count: buckets.reduce((sum, bucket) => sum + bucket.count, 0),
     },
-    ...buckets.map(({ width, positions, count }) => ({ width, positions, count })),
+    ...buckets.map(({ width, positions, count }) => ({
+      width,
+      positions,
+      count,
+    })),
   ];
 }
 
