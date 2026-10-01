@@ -40,7 +40,7 @@ export function EventsTable(props: DataTableProps) {
 
   return (
     <DataTable {...props}>
-      <DataColumn id="event" label={t(labels.event)} width="2fr">
+      <DataColumn id="event" label={t(labels.event)} width="minmax(0, 2fr)">
         {(row: any) => {
           return (
             <Row alignItems="center" gap="2" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -66,8 +66,12 @@ export function EventsTable(props: DataTableProps) {
           );
         }}
       </DataColumn>
-      <DataColumn id="hostname" label={t(labels.hostname)} width="160px">
-        {(row: any) => row.hostname}
+      <DataColumn id="hostname" label={t(labels.hostname)} width="200px">
+        {(row: any) => (
+          <Text title={row.hostname} truncate>
+            {row.hostname}
+          </Text>
+        )}
       </DataColumn>
       <DataColumn id="session" label={t(labels.session)} width="80px">
         {(row: any) => {
