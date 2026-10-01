@@ -1,5 +1,5 @@
 'use client';
-import { Button, Column, Row, SearchField } from '@umami/react-zen';
+import { Button, Column, Loading, Row, SearchField } from '@umami/react-zen';
 import { useState } from 'react';
 import { WebsiteControls } from '@/app/(main)/websites/[websiteId]/WebsiteControls';
 import { EmptyPlaceholder } from '@/components/common/EmptyPlaceholder';
@@ -9,7 +9,6 @@ import { Flame } from '@/components/icons';
 import { FilterButtons } from '@/components/input/FilterButtons';
 import type { HeatmapMode } from '@/queries/sql';
 import { Heatmap, type HeatmapSelection } from './Heatmap';
-import styles from './Heatmap.module.css';
 
 const EMPTY_SELECTION: HeatmapSelection = { urlPath: '', hostname: '' };
 
@@ -23,12 +22,16 @@ export function HeatmapsPage({ websiteId }: { websiteId: string }) {
   const { isPhone } = useMobile();
   const website = useWebsite();
   const { t, labels, messages } = useMessages();
-  const { hasFeature, cloudMode } = useSubscription(website?.teamId);
+  const { hasFeature, cloudMode, isLoading } = useSubscription(website?.teamId);
 
   const buttons = [
     { id: 'click', label: 'Clicks' },
     { id: 'scroll', label: 'Scroll' },
   ];
+
+  if (isLoading) {
+    return <Loading placement="absolute" />;
+  }
 
   if (cloudMode && !hasFeature('replays')) {
     return (
@@ -66,7 +69,12 @@ export function HeatmapsPage({ websiteId }: { websiteId: string }) {
             {isPhone ? (
               <Column gap="3">
                 <Row>
-                  <SearchField value={search} onSearch={setSearch} placeholder="Search" />
+                  <SearchField
+                    value={search}
+                    onSearch={setSearch}
+                    placeholder="Search"
+                    className="w-full max-w-md"
+                  />
                 </Row>
                 <Row justifyContent="flex-end">
                   <FilterButtons
@@ -78,7 +86,12 @@ export function HeatmapsPage({ websiteId }: { websiteId: string }) {
               </Column>
             ) : (
               <Row alignItems="center" justifyContent="space-between" gap="4">
-                <SearchField value={search} onSearch={setSearch} placeholder="Search" />
+                <SearchField
+                  value={search}
+                  onSearch={setSearch}
+                  placeholder="Search"
+                  className="w-full max-w-md"
+                />
                 <FilterButtons
                   items={buttons}
                   value={mode}

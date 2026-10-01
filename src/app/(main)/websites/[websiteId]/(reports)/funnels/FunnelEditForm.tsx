@@ -16,9 +16,15 @@ import {
   Text,
   TextField,
 } from '@umami/react-zen';
-import { endOfDay, subMonths } from 'date-fns';
 import { Fragment, useState } from 'react';
-import { useApi, useMessages, useMobile, useReportQuery, useUpdateQuery, useWebsiteValuesQuery } from '@/components/hooks';
+import {
+  useApi,
+  useFunnelDefinitionQuery,
+  useMessages,
+  useMobile,
+  useUpdateQuery,
+  useWebsiteValuesQuery,
+} from '@/components/hooks';
 import { Plus, X } from '@/components/icons';
 import { ActionSelect } from '@/components/input/ActionSelect';
 import { LookupField } from '@/components/input/LookupField';
@@ -71,6 +77,7 @@ function StepRow({
           <LookupField
             websiteId={websiteId}
             type={type}
+            allowCustomValue
             {...field}
             onValueChange={(v: string) => {
               setEventName(v);
@@ -120,10 +127,7 @@ function StepRow({
             {...field}
             items={hostnameItems}
             inputValue={field.value ?? ''}
-            onInputChange={field.onChange}
-            formValue="text"
-            allowsEmptyCollection
-            allowsCustomValue
+            onInputValueChange={field.onChange}
           >
             {hostnameItems.map(({ value }) => (
               <ListItem key={value} id={value}>
@@ -190,8 +194,10 @@ export function FunnelEditForm({
   onClose?: () => void;
 }) {
   const { t, labels } = useMessages();
-  const { data, isLoading } = useReportQuery(id);
-  const { mutateAsync, error, isPending, touch } = useUpdateQuery(`/reports${id ? `/${id}` : ''}`);
+  const { data, isLoading } = useFunnelDefinitionQuery(websiteId, id);
+  const { mutateAsync, error, isPending, touch } = useUpdateQuery(
+    `/websites/${websiteId}/funnels${id ? `/${id}` : ''}`,
+  );
 
   const handleSubmit = async ({
     name,
@@ -201,11 +207,10 @@ export function FunnelEditForm({
     [key: string]: unknown;
   }) => {
     await mutateAsync(
-      { ...data, id, name, type: 'funnel', websiteId, parameters },
+      { name, description: data?.description, parameters },
       {
         onSuccess: async () => {
-          touch('reports:funnel');
-          touch(`report:${id}`);
+          touch('websites:funnels');
           onSave?.();
           onClose?.();
         },
@@ -231,7 +236,17 @@ export function FunnelEditForm({
       <FormField name="name" label={t(labels.name)} rules={{ required: t(labels.required) }}>
         <TextField autoFocus />
       </FormField>
-      <FormField name="window" label={t(labels.window)} rules={{ required: t(labels.required) }}>
+      <FormField
+        name="window"
+        label={t(labels.window)}
+        rules={{
+          required: t(labels.required),
+          pattern: {
+            value: /^[1-9][0-9]*$/,
+            message: t(labels.invalidValue) || 'Must be greater than 0',
+          },
+        }}
+      >
         <TextField />
       </FormField>
       <FormFieldArray
